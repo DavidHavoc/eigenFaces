@@ -58,7 +58,7 @@ def plot_face(img, title, ax, cmap='gray'):
 # --- Main Application Logic ---
 
 def main():
-    st.title("Eigenfaces: Face Recognition using PCA")
+    st.title("Eigenfaces: Face Recognition using PCA (Principal Component Analysis)")
     st.markdown("""
     Based on the paper *'Face Recognition Using Eigenfaces'* by Turk & Pentland (1991).
     
@@ -253,6 +253,246 @@ def main():
             plot_face(full_pca.components_[i], f"u_{i+1}", axes_s5[row, col])
         plt.tight_layout()
         st.pyplot(fig_s5)
+        
+        # --- STEP 6: Weight Vectors ---
+        st.markdown("---")
+        st.subheader("Step 6: Calculate & Save Known Weight Vectors (Ω_database)")
+        st.markdown(r"""
+        The computer takes the original $M$ training images, subtracts the **Average Face** ($\Psi$), 
+        and projects them onto the **Eigenfaces** ($u$) we just created.
+        """)
+        st.latex(r"\Omega_i = ({\Gamma_i - \Psi}) \cdot U^T")
+        
+        st.markdown(r"""
+        - $\Gamma_i$: The $i$-th training image
+        - $\Psi$: The Average Face (from Step 1)
+        - $U$: The matrix of Eigenfaces (from Step 5)
+        - $\Omega_i$: The resulting **Weight Vector** (Face Print) for image $i$
+        """)
+        
+        # Show example weight vectors
+        st.write("**Example: Weight Vectors for first 5 training images:**")
+        fig_s6, axes_s6 = plt.subplots(1, 5, figsize=(14, 3))
+        for i in range(5):
+            axes_s6[i].bar(range(min(10, n_components)), weights_train[i][:10], color='steelblue')
+            axes_s6[i].set_title(f"Person {y_train[i]}", fontsize=10)
+            axes_s6[i].set_xlabel("Component", fontsize=8)
+            if i == 0:
+                axes_s6[i].set_ylabel("Weight", fontsize=8)
+            axes_s6[i].tick_params(labelsize=7)
+        plt.tight_layout()
+        st.pyplot(fig_s6)
+        
+        st.info("""
+        **Result:** A list of weight vectors (**Face Prints**) for every person (Alice, Bob, etc.) is saved.
+        
+        **Why Sixth?** We couldn't calculate these "coordinates" before we had the "map" (the Eigenfaces).
+        """)
+        
+        # --- STEP 7: Thresholds ---
+        st.markdown("---")
+        st.subheader("Step 7: Calculate & Save Thresholds (θ_ε and θ_δ)")
+        st.markdown(r"""
+        The thresholds are **critical** parameters that determine how strict the system is. 
+        They are learned from the training data by analyzing how the system behaves.
+        
+        The computer asks two critical questions:
+        1. **"What is the max distance between a person's own photos?"** → This determines $\theta_\epsilon$ (identity threshold)
+        2. **"What is the worst reconstruction error for known faces?"** → This determines $\theta_\delta$ (face detection threshold)
+        """)
+        
+        # --- Path 1 Threshold (Face Detection) ---
+        st.markdown("---")
+        st.markdown("#### θ_δ (Face Detection Threshold)")
+        st.error(r"""
+        **Method:** Calculate the reconstruction error for all *known faces* in the training set, 
+        then set the threshold to be slightly above the maximum observed error.
+        
+        To calculate the threshold $\theta_\delta$ (Step 7), we perform an internal **"sanity check"** during the training phase. 
+        We reconstruct every face in our training set and find the one with the **worst error**. 
+        We use that worst-case error to set the limit for the live system.
+        """)
+        
+        # Calculate reconstruction errors for training faces
+        train_phi = X_train - mean_face
+        train_reconstructed = np.dot(np.dot(train_phi, eigenfaces.T), eigenfaces)
+        train_errors = np.linalg.norm(train_phi - train_reconstructed, axis=1)
+        
+        st.markdown("**How is ε_train calculated?**")
+        st.markdown(r"""
+        For each training face, we measure how well Eigenfaces can reconstruct it:
+        """)
+        st.latex(r"\epsilon_i = ||\Phi_i - \Phi_{rec,i}^{(K)}||")
+        st.markdown(r"""
+        Where the reconstruction using $K$ Eigenfaces is:
+        """)
+        st.latex(r"\Phi_{rec,i}^{(K)} = \sum_{j=1}^{K} \omega_{ij} \cdot u_j")
+        st.markdown(r"""
+        - $\Gamma_i$ = Original training image
+        - $\Psi$ = Average face  
+        - $\Phi_i = \Gamma_i - \Psi$ = Centered face (difference from average)
+        - $\Phi_{rec,i}^{(K)}$ = Reconstructed centered face using **K** Eigenfaces
+        - $\omega_{ij}$ = Weight (projection) of face $i$ onto Eigenface $j$
+        - $u_j$ = The $j$-th Eigenface
+        - $||\cdot||$ = Euclidean distance (how different are the pixel values?)
+        
+        A **low ε** means the face reconstructs well → it's a valid face in our "Face Space".
+        """)
+        
+        st.latex(r"\theta_\delta = \max(\epsilon_{train}) + \text{margin}")
+        
+        st.markdown(r"""
+        **Breaking down the formula:**
+        - $\max(\epsilon_{train})$ = The **worst** (highest) reconstruction error we observed among all training faces
+        - $\text{margin}$ = A **safety buffer** (e.g., 10-20% extra) to account for natural variation in new images
+        
+        **In plain English:** *"If the worst-reconstructed known face had error X, then anything with error > X + buffer is probably NOT a face."*
+        """)
+        
+        col_face_stats, col_face_hist = st.columns([1, 2])
+        
+        with col_face_stats:
+            margin_example = np.max(train_errors) * 0.15  # 15% margin example
+            st.markdown(f"""
+            **From our training data:**
+            - Max reconstruction error: **{np.max(train_errors):.3f}**
+            - Example margin (15%): **{margin_example:.3f}**
+            - **Suggested θ_δ:** {np.max(train_errors) + margin_example:.3f}
+            """)
+        
+        with col_face_hist:
+            # Show histogram
+            fig_hist1, ax_hist1 = plt.subplots(figsize=(8, 3))
+            ax_hist1.hist(train_errors, bins=30, color='steelblue', edgecolor='white', alpha=0.7)
+            ax_hist1.axvline(x=np.max(train_errors), color='red', linestyle='--', linewidth=2, label=f'Max Error = {np.max(train_errors):.3f}')
+            ax_hist1.set_xlabel('Reconstruction Error')
+            ax_hist1.set_ylabel('Count')
+            ax_hist1.set_title('Distribution of Reconstruction Errors (Training Faces)')
+            ax_hist1.legend()
+            st.pyplot(fig_hist1)
+        
+        # --- Path 2 Threshold (Identity) ---
+        st.markdown("---")
+        st.markdown("#### θ_ε (Identity Threshold)")
+        st.markdown(r"""
+        **Method:** For each person, calculate the average distance between their own images. 
+        The threshold should be larger than within-class distances but smaller than between-class distances.
+        """)
+        
+        st.latex(r"\theta_\epsilon = \alpha \cdot \text{mean}(\text{within-class distances})")
+        
+        st.markdown(r"""
+        **Breaking down the formula:**
+        - $\text{mean}(\text{within-class distances})$ = The **average** distance between photos of the **same person**
+        - $\alpha$ = A **multiplier** (typically 1.5 to 3.0) that sets how strict the system is
+        
+        **In plain English:** *"If photos of the same person are typically X units apart, then someone within α×X distance is probably that person."*
+        
+        - $\alpha = 1.5$ → **Strict** (fewer false positives, might reject valid matches)
+        - $\alpha = 2.0$ → **Balanced** (good trade-off)
+        - $\alpha = 3.0$ → **Lenient** (accepts more matches, risk of misidentification)
+        """)
+        
+        # Calculate within-class distances
+        within_class_dists_train = []
+        for person_id in np.unique(y_train):
+            person_indices = np.where(y_train == person_id)[0]
+            if len(person_indices) > 1:
+                person_weights = weights_train[person_indices]
+                for i in range(len(person_weights)):
+                    for j in range(i+1, len(person_weights)):
+                        within_class_dists_train.append(np.linalg.norm(person_weights[i] - person_weights[j]))
+        
+        within_class_dists_train = np.array(within_class_dists_train)
+        
+        col_id_stats, col_id_hist = st.columns([1, 2])
+        
+        with col_id_stats:
+            mean_dist = np.mean(within_class_dists_train)
+            st.markdown(f"""
+            **From our training data:**
+            - Mean within-class distance: **{mean_dist:.2f}**
+            
+            **Example thresholds:**
+            - α=1.5 (strict): **{1.5 * mean_dist:.2f}**
+            - α=2.0 (balanced): **{2.0 * mean_dist:.2f}**
+            - α=3.0 (lenient): **{3.0 * mean_dist:.2f}**
+            """)
+        
+        with col_id_hist:
+            # Show histogram of all pairwise distances
+            fig_hist2, ax_hist2 = plt.subplots(figsize=(8, 3))
+            ax_hist2.hist(within_class_dists_train, bins=30, color='steelblue', edgecolor='white', alpha=0.7)
+            ax_hist2.axvline(x=np.max(within_class_dists_train), color='red', linestyle='--', linewidth=2, label=f'Max = {np.max(within_class_dists_train):.2f}')
+            ax_hist2.set_xlabel('Distance Between Face Weights')
+            ax_hist2.set_ylabel('Count')
+            ax_hist2.set_title('Distribution of Within-Class Distances (Same Person)')
+            ax_hist2.legend()
+            st.pyplot(fig_hist2)
+        
+        st.info("""
+        **Key Insight:** If the threshold is too low, the system rejects everyone as 'Unknown'. 
+        If too high, it misidentifies people. Finding the right balance requires experimentation 
+        or techniques like ROC curve analysis.
+        
+        **Why Last?** You cannot calculate the "safe limits" of the system until you have generated the data and observed how the system behaves.
+        """)
+        
+        # --- COMPRESSION METRIC DASHBOARD ---
+        st.markdown("---")
+        st.subheader("Dimensionality Reduction: The Power of PCA")
+        
+        # Calculate compression metrics
+        original_size = 4096  # 64x64 pixels
+        compressed_size = n_components
+        compression_ratio = original_size / compressed_size
+        
+        # Create 3-column dashboard layout
+        col_orig, col_comp, col_ratio = st.columns(3)
+        
+        with col_orig:
+            st.metric(
+                label="Original Input Space (N²)",
+                value="4,096",
+                help="Each 64×64 image has 4,096 pixel values"
+            )
+            st.caption("Pixels (Dimensions)")
+        
+        with col_comp:
+            st.metric(
+                label="Reduced Face Space (K)",
+                value=f"{compressed_size}",
+                help="Number of Eigenface components used"
+            )
+            st.caption("Weights (Dimensions)")
+        
+        with col_ratio:
+            st.metric(
+                label="Compression Ratio",
+                value=f"{compression_ratio:.1f}x",
+                delta="Efficient" if compression_ratio > 10 else "Low",
+                delta_color="normal"
+            )
+            st.caption("Dimensionality Reduction")
+        
+        st.caption(r"""
+        By projecting the high-dimensional image data ($N^2$) onto the low-dimensional Face Space ($K$), 
+        we achieve a massive reduction in redundancy. According to **Information Theory**, this ratio represents 
+        the efficiency of the **Karhunen-Loève expansion** in isolating the useful signal (Variance) from the noise.
+        
+        *Try moving the K slider in the sidebar to see how the compression ratio changes!*
+        """)
+        
+        st.info(r"""
+        **What is K / Face Space?**
+        
+        The **Face Space** is a $K$-dimensional subspace where every face can be represented as a single point (or vector). 
+        Instead of storing 4,096 pixel values, we store just $K$ numbers — the **weights** that tell us "how much" of each 
+        Eigenface to mix together. This compact representation is what makes recognition fast and efficient.
+        """)
+        
+        st.latex(r"K = \{u_1, u_2, u_3, \ldots, u_K\}")
+        st.caption("K represents the set of K Eigenfaces (basis vectors) that span the Face Space.")
         
         st.success("""
         **Training Complete!** 
@@ -623,96 +863,7 @@ def main():
             st.line_chart(chart_data, x="Index", y=["Input (Omega_new)", "Match (Omega_k)"])
             st.caption("If the two lines overlap closely, the faces are similar.")
         
-        # ========================================
-        # THRESHOLD CALCULATION
-        # ========================================
-        with st.expander("How are the Thresholds Calculated?"):
-            st.markdown(r"""
-            ### Threshold Calculation
-            
-            The thresholds are **critical** parameters that determine how strict the system is. 
-            They are typically learned from the training data.
-            
-            ---
-            
-            #### Path 1 Threshold (Face Detection): $\theta_{face}$
-            
-            **Method:** Calculate the reconstruction error for all *known faces* in the training set, 
-            then set the threshold to be slightly above the maximum observed error.
-            """)
-            
-            # Calculate reconstruction errors for all training faces
-            train_phi = X_train - mean_face
-            train_reconstructed = np.dot(np.dot(train_phi, eigenfaces.T), eigenfaces)
-            train_errors = np.linalg.norm(train_phi - train_reconstructed, axis=1)
-            
-            st.latex(r"\theta_{face} = \max(\epsilon_{train}) + \text{margin}")
-            
-            st.markdown(f"""
-            **From our training data:**
-            - Mean reconstruction error: **{np.mean(train_errors):.3f}**
-            - Max reconstruction error: **{np.max(train_errors):.3f}**
-            - Standard deviation: **{np.std(train_errors):.3f}**
-            - **Threshold used:** {face_threshold} (set conservatively for this demo)
-            """)
-            
-            # Show histogram
-            fig_hist1, ax_hist1 = plt.subplots(figsize=(8, 3))
-            ax_hist1.hist(train_errors, bins=30, color='steelblue', edgecolor='white', alpha=0.7)
-            ax_hist1.axvline(x=face_threshold, color='red', linestyle='--', linewidth=2, label=f'Threshold = {face_threshold}')
-            ax_hist1.axvline(x=reconstruction_error, color='green', linestyle='-', linewidth=2, label=f'Current Input = {reconstruction_error:.3f}')
-            ax_hist1.set_xlabel('Reconstruction Error')
-            ax_hist1.set_ylabel('Count')
-            ax_hist1.set_title('Distribution of Reconstruction Errors (Training Faces)')
-            ax_hist1.legend()
-            st.pyplot(fig_hist1)
-            
-            st.markdown("---")
-            
-            st.markdown(r"""
-            #### Path 2 Threshold (Identity): $\theta_{id}$
-            
-            **Method:** For each person, calculate the average distance between their own images. 
-            The threshold should be larger than within-class distances but smaller than between-class distances.
-            """)
-            
-            st.latex(r"\theta_{id} = \alpha \cdot \text{mean}(\text{within-class distances})")
-            
-            # Calculate within-class distances (simplified: mean distance per person)
-            within_class_dists = []
-            for person_id in np.unique(y_train):
-                person_indices = np.where(y_train == person_id)[0]
-                if len(person_indices) > 1:
-                    person_weights = weights_train[person_indices]
-                    for i in range(len(person_weights)):
-                        for j in range(i+1, len(person_weights)):
-                            within_class_dists.append(np.linalg.norm(person_weights[i] - person_weights[j]))
-            
-            within_class_dists = np.array(within_class_dists)
-            
-            st.markdown(f"""
-            **From our training data:**
-            - Mean within-class distance: **{np.mean(within_class_dists):.2f}**
-            - Max within-class distance: **{np.max(within_class_dists):.2f}**
-            - **Threshold used:** {identity_threshold} (approx 2x the mean within-class distance)
-            """)
-            
-            # Show histogram of all pairwise distances
-            fig_hist2, ax_hist2 = plt.subplots(figsize=(8, 3))
-            ax_hist2.hist(within_class_dists, bins=30, color='steelblue', edgecolor='white', alpha=0.7)
-            ax_hist2.axvline(x=identity_threshold, color='red', linestyle='--', linewidth=2, label=f'Threshold = {identity_threshold}')
-            ax_hist2.axvline(x=min_distance, color='green', linestyle='-', linewidth=2, label=f'Current Match = {min_distance:.2f}')
-            ax_hist2.set_xlabel('Distance Between Face Weights')
-            ax_hist2.set_ylabel('Count')
-            ax_hist2.set_title('Distribution of Within-Class Distances (Same Person)')
-            ax_hist2.legend()
-            st.pyplot(fig_hist2)
-            
-            st.info("""
-            **Key Insight:** If the threshold is too low, the system rejects everyone as 'Unknown'. 
-            If too high, it misidentifies people. Finding the right balance requires experimentation 
-            or techniques like ROC curve analysis.
-            """)
+
 
     # =======================
     # TAB 4: WEBCAM RECOGNITION
