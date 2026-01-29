@@ -63,6 +63,11 @@ This project helps answer:
 *   How does dimensionality reduction (PCA) work on images?
 *   Why did we switch from Eigenfaces to Deep Learning?
 
+## References
+
+*   **Turk, M., & Pentland, A. (1991).** "Eigenfaces for Recognition." *Journal of Cognitive Neuroscience*, 3(1), 71-86.  
+    [IEEE Xplore](https://ieeexplore.ieee.org/document/139758/authors#authors)
+
 ## License
 
 This project is open-source and available under the MIT License.
