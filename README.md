@@ -1,4 +1,4 @@
-# Eigenfaces Demo: Educational Facial Recognition App 🎭
+# Eigenfaces Demo: Educational Facial Recognition App 
 
 An interactive Streamlit application that breaks down and visualizes the **Eigenfaces** facial recognition algorithm (Turk & Pentland, 1991).
 
