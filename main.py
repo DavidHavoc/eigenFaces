@@ -391,6 +391,43 @@ def main():
         This demonstrates the full algorithm as described by Turk & Pentland.
         """)
         
+        # Info button explaining the data split
+        with st.expander("info: How does Live Recognition work with the dataset?"):
+            st.markdown("""
+            #### Dataset Breakdown
+            
+            **Total Dataset:** 400 Images
+            
+            **Total People (Classes):** 40 People (labeled ID 0 to ID 39)
+            
+            **Images per Person:** 10 images each
+            
+            ---
+            
+            #### How the Code Splits the Data
+            
+            The code uses `train_test_split(test_size=0.25)`, which divides the data as follows:
+            
+            **The Training Set (M=300):**
+            - 300 Images are used to calculate the Mean Face (Ψ), the Covariance Matrix, and the Eigenfaces.
+            - The algorithm "studies" these 300 photos to learn what faces look like.
+            
+            **The Test Set (100 Images):**
+            - 100 Images are hidden away.
+            - These are used in the **"Live Recognition"** tab.
+            - These represent "new" photos that the system has never seen before, but they belong to the same 40 people.
+            
+            ---
+            
+            #### Why Use a Test Set?
+            
+            The test set simulates **real-world recognition** scenarios:
+            - The system has learned from the training images
+            - When you click "Pick Random Test Face", you're testing if it can recognize a person from a photo it hasn't seen during training
+            - This demonstrates the algorithm's ability to **generalize** to new images of known people
+            """)
+        
+        
         col_btn, col_info = st.columns([1, 4])
         
         # Initialize session state for random index so it doesn't jump on slider change
