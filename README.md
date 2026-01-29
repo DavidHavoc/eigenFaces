@@ -15,9 +15,12 @@ The app is divided into 6 educational tabs:
     *   Weighted Sum (Mixing the ingredients)
     *   Final Reconstruction
 3.  **Live Recognition**: Pick a random "Unknown" face and see the algorithm find the best match using **Euclidean Distance**. Includes vector visualizations.
-4.  **Component Explorer**: Inspect individual Eigenfaces and view a Scree Plot (Explained Variance) to understand data compression.
-5.  **History & Context**: Learn about the 1991 revolution in Computer Vision.
-6.  **Modern AI**: A comparison between Eigenfaces (Holistic) vs. Modern Deep Learning/CNNs (Feature-based).
+4.  **Webcam Recognition**: Take a photo of yourself to see how the algorithm processes real-world images.
+    *   **Auto-Face Detection**: Uses OpenCV/Haar Cascades to automatically find and crop your face.
+    *   **Real-time Processing**: Preprocesses your image to match the training data format (64x64 grayscale).
+5.  **Component Explorer**: Inspect individual Eigenfaces and view a Scree Plot (Explained Variance) to understand data compression.
+6.  **History & Context**: Learn about the 1991 revolution in Computer Vision.
+7.  **Modern AI**: A comparison between Eigenfaces (Holistic) vs. Modern Deep Learning/CNNs (Feature-based).
 
 ## Installation
 
@@ -42,6 +45,8 @@ The app is divided into 6 educational tabs:
 *   **Python 3.x**
 *   **Streamlit**: For the interactive web interface.
 *   **Scikit-Learn**: For the PCA implementation and Olivetti Faces dataset.
+*   **OpenCV**: For real-time face detection and image processing.
+*   **Pillow (PIL)**: For handling image uploads and formatting.
 *   **NumPy**: For linear algebra calculations (Dot products, Norms).
 *   **Matplotlib**: For plotting face images and graphs.
 

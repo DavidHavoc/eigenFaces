@@ -1,6 +1,8 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+import cv2
+from PIL import Image
 from sklearn.datasets import fetch_olivetti_faces
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
@@ -112,7 +114,7 @@ def main():
     weights_train = np.dot(X_train_centered, eigenfaces.T)
 
     # --- Main Area: Tabs ---
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["1. The Face Space", "2. Reconstruction", "3. Live Recognition", "4. Explorer", "5. History & Context", "6. Future & Modern"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["1. The Face Space", "2. Reconstruction", "3. Live Recognition", "4. Webcam Recognition", "5. Explorer", "6. History & Context", "7. Future & Modern"])
 
     # =======================
     # TAB 1: FACE SPACE
@@ -324,7 +326,7 @@ def main():
             
         with col_match:
             st.subheader("Best Match")
-            match_status = "✅ KNOWN" if is_known else "❌ UNKNOWN (Too far)"
+            match_status = "KNOWN" if is_known else "UNKNOWN (Too far)"
             
             fig_out, ax_out = plt.subplots()
             plot_face(X_train[best_match_idx], f"Predicted: {predicted_person}", ax_out)
@@ -374,9 +376,187 @@ def main():
             st.caption("If the two lines overlap closely, the distance is small (Good Match).")
 
     # =======================
-    # TAB 4: COMPONENT EXPLORER
+    # TAB 4: WEBCAM RECOGNITION
     # =======================
     with tab4:
+        st.header(" Webcam Face Recognition")
+        st.markdown("""
+        **Try it yourself!** Take a photo with your webcam and see how the Eigenfaces algorithm 
+        attempts to match your face against the Olivetti training set.
+        
+        > **Note:** Since the training set contains only 40 specific people, your face will likely 
+        > be matched to the "closest" person in that dataset. The distance metric will tell you 
+        > how similar the match is.
+        """)
+        
+        st.warning("**For best results:** Center your face, use good lighting, and look directly at the camera.")
+        
+        # Camera input
+        camera_photo = st.camera_input("Take a photo of your face")
+        
+        if camera_photo is not None:
+            # Process the captured image
+            st.subheader("Processing Your Image")
+            
+            # Load image from camera
+            pil_image = Image.open(camera_photo)
+            img_array = np.array(pil_image)
+            
+            col_orig, col_processed = st.columns(2)
+            
+            with col_orig:
+                st.caption("Original Capture")
+                st.image(pil_image, use_container_width=True)
+            
+            # Preprocess for eigenfaces
+            # 1. Convert to grayscale
+            if len(img_array.shape) == 3:
+                gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            else:
+                gray = img_array
+            
+            # 2. Detect face using Haar Cascade
+            # Load the pre-trained face detector
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            
+            # Detect faces in the image
+            faces = face_cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(30, 30)
+            )
+            
+            face_detected = len(faces) > 0
+            
+            if face_detected:
+                # Use the first (largest) detected face
+                # Sort by area (w*h) and take the largest
+                faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
+                x, y, w, h = faces[0]
+                
+                # Add some padding around the face (20%)
+                padding = int(0.2 * max(w, h))
+                x_start = max(0, x - padding)
+                y_start = max(0, y - padding)
+                x_end = min(gray.shape[1], x + w + padding)
+                y_end = min(gray.shape[0], y + h + padding)
+                
+                # Crop the face region
+                face_crop = gray[y_start:y_end, x_start:x_end]
+                
+                # Make it square (take the center)
+                fh, fw = face_crop.shape
+                if fh > fw:
+                    diff = (fh - fw) // 2
+                    face_crop = face_crop[diff:diff+fw, :]
+                elif fw > fh:
+                    diff = (fw - fh) // 2
+                    face_crop = face_crop[:, diff:diff+fh]
+                
+                cropped = face_crop
+                st.success(f"Face detected! Region: {w}x{h} pixels")
+            else:
+                # Fallback: center crop if no face detected
+                st.warning("No face detected. Using center crop as fallback. Try better lighting or face the camera directly.")
+                h_img, w_img = gray.shape
+                min_dim = min(h_img, w_img)
+                start_h = (h_img - min_dim) // 2
+                start_w = (w_img - min_dim) // 2
+                cropped = gray[start_h:start_h+min_dim, start_w:start_w+min_dim]
+            
+            # 3. Resize to 64x64 (Olivetti face size)
+            resized = cv2.resize(cropped, (64, 64), interpolation=cv2.INTER_AREA)
+            
+            # 4. Normalize to [0, 1] range (like Olivetti)
+            normalized = resized.astype(np.float64) / 255.0
+            
+            with col_processed:
+                st.caption("Preprocessed (64x64 grayscale)")
+                fig_proc, ax_proc = plt.subplots(figsize=(3, 3))
+                ax_proc.imshow(normalized, cmap='gray')
+                ax_proc.axis('off')
+                st.pyplot(fig_proc)
+                if face_detected:
+                    st.caption("Face auto-detected and cropped")
+            
+            # 5. Flatten to vector
+            webcam_face = normalized.flatten()
+            
+            st.markdown("---")
+            st.subheader("Recognition Results")
+            
+            # --- Recognition Algorithm ---
+            # Project webcam face into Face Space
+            webcam_phi = webcam_face - mean_face
+            omega_webcam = np.dot(webcam_phi, eigenfaces.T)
+            
+            # Find Nearest Neighbor
+            dists_webcam = np.linalg.norm(weights_train - omega_webcam, axis=1)
+            best_match_idx_webcam = np.argmin(dists_webcam)
+            min_distance_webcam = dists_webcam[best_match_idx_webcam]
+            
+            # Threshold for unknown
+            threshold_webcam = 25.0
+            is_known_webcam = min_distance_webcam < threshold_webcam
+            
+            predicted_person_webcam = y_train[best_match_idx_webcam]
+            
+            # Display results
+            col_you, col_match_webcam = st.columns(2)
+            
+            with col_you:
+                st.markdown("**Your Face (Preprocessed)**")
+                fig_you, ax_you = plt.subplots(figsize=(3, 3))
+                plot_face(webcam_face, "You", ax_you)
+                st.pyplot(fig_you)
+                
+            with col_match_webcam:
+                st.markdown("**Closest Match from Training Set**")
+                fig_match, ax_match = plt.subplots(figsize=(3, 3))
+                plot_face(X_train[best_match_idx_webcam], f"Person {predicted_person_webcam}", ax_match)
+                st.pyplot(fig_match)
+            
+            # Metrics
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                st.metric("Euclidean Distance", f"{min_distance_webcam:.2f}")
+            with col_m2:
+                st.metric("Matched Person ID", f"{predicted_person_webcam}")
+            
+            if is_known_webcam:
+                st.success(f"Match found! Distance ({min_distance_webcam:.2f}) is below threshold ({threshold_webcam}).")
+            else:
+                st.info(f"No close match. Distance ({min_distance_webcam:.2f}) exceeds threshold ({threshold_webcam}). Your face is 'unknown' to this system.")
+            
+            # Reconstruction of webcam face
+            st.markdown("---")
+            st.subheader("How the Algorithm 'Sees' You")
+            st.markdown(f"Using **{n_components}** eigenfaces to reconstruct your image:")
+            
+            # Reconstruct
+            reconstructed_webcam = np.dot(omega_webcam, eigenfaces) + mean_face
+            
+            col_r1, col_r2 = st.columns(2)
+            with col_r1:
+                st.caption("Your Original (Preprocessed)")
+                fig_ro, ax_ro = plt.subplots(figsize=(3, 3))
+                plot_face(webcam_face, "", ax_ro)
+                st.pyplot(fig_ro)
+            with col_r2:
+                st.caption(f"Reconstructed (K={n_components})")
+                fig_rr, ax_rr = plt.subplots(figsize=(3, 3))
+                plot_face(reconstructed_webcam, "", ax_rr)
+                st.pyplot(fig_rr)
+            
+            st.info("The reconstruction shows what information the algorithm retains. Increase the number of eigenfaces (slider) for more detail!")
+        else:
+            st.info("Click the camera button above to take a photo and test face recognition!")
+
+    # =======================
+    # TAB 5: COMPONENT EXPLORER
+    # =======================
+    with tab5:
         st.header("Component Explorer")
         st.write("Understand the 'building blocks' (Eigenfaces) and why we chose them.")
         
@@ -425,9 +605,9 @@ def main():
                 st.pyplot(fig_g)
 
     # =======================
-    # TAB 5: HISTORY & CONTEXT
+    # TAB 6: HISTORY & CONTEXT
     # =======================
-    with tab5:
+    with tab6:
         st.header("History & Context")
         
         st.subheader("1. The Origin Story (1991)")
@@ -464,9 +644,9 @@ def main():
             st.error("**Cons**\n\n- Fails with Lighting Changes\n- Fails with Rotations\n- Needs Centered Faces")
 
     # =======================
-    # TAB 6: FUTURE & MODERN
+    # TAB 7: FUTURE & MODERN
     # =======================
-    with tab6:
+    with tab7:
         st.header("Modern AI & The Future")
         
         st.subheader("What do we use now? (Deep Learning)")
