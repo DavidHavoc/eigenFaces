@@ -6,21 +6,26 @@ This project is designed for students and enthusiasts to understand the mathemat
 
 ## Features
 
-The app is divided into 6 educational tabs:
+The app is divided into 7 educational tabs:
 
-1.  **The Face Space**: Visualizes the "Average Face" and the top Eigenfaces (Ghostly features).
+0.  **Training Deconstruction**: See exactly how the algorithm learns from training data:
+    *   Calculate the Average Face
+    *   Compute Difference Faces
+    *   Build the Covariance Surrogate Matrix
+    *   Find Eigenvectors and Eigenvalues
+    *   Derive the final Eigenfaces
+1.  **Component Explorer**: Inspect individual Eigenfaces and view a Scree Plot (Explained Variance) to understand data compression.
 2.  **Step-by-Step Reconstruction**: A detailed mathematical walkthrough showing how a face is built layer-by-layer:
     *   Centering ($\text{Face} - \text{Mean}$)
     *   Projection (Calculating Weights/DNA)
     *   Weighted Sum (Mixing the ingredients)
     *   Final Reconstruction
-3.  **Live Recognition**: Pick a random "Unknown" face and see the algorithm find the best match using **Euclidean Distance**. Includes vector visualizations.
+3.  **Live Recognition**: Pick a random "Unknown" face and see the two-path algorithm (Face Detection + Identity Check) with threshold explanations.
 4.  **Webcam Recognition**: Take a photo of yourself to see how the algorithm processes real-world images.
     *   **Auto-Face Detection**: Uses OpenCV/Haar Cascades to automatically find and crop your face.
     *   **Real-time Processing**: Preprocesses your image to match the training data format (64x64 grayscale).
-5.  **Component Explorer**: Inspect individual Eigenfaces and view a Scree Plot (Explained Variance) to understand data compression.
-6.  **History & Context**: Learn about the 1991 revolution in Computer Vision.
-7.  **Modern AI**: A comparison between Eigenfaces (Holistic) vs. Modern Deep Learning/CNNs (Feature-based).
+5.  **History & Context**: Learn about the 1991 revolution in Computer Vision.
+6.  **Modern AI**: A comparison between Eigenfaces (Holistic) vs. Modern Deep Learning/CNNs (Feature-based).
 
 ## Installation
 

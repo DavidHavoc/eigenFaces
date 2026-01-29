@@ -114,36 +114,154 @@ def main():
     weights_train = np.dot(X_train_centered, eigenfaces.T)
 
     # --- Main Area: Tabs ---
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["1. The Face Space", "2. Reconstruction", "3. Live Recognition", "4. Webcam Recognition", "5. Explorer", "6. History & Context", "7. Future & Modern"])
+    tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["0. Training Deconstruction", "1. Explorer", "2. Reconstruction", "3. Live Recognition", "4. Webcam Recognition", "5. History & Context", "6. Future & Modern"])
 
     # =======================
-    # TAB 1: FACE SPACE
+    # TAB 0: TRAINING DECONSTRUCTION
     # =======================
-    with tab1:
-        st.header("The 'Face Space'")
-        st.markdown(f"**Average Face ($\Psi$):** The center of our coordinate system.")
+    with tab0:
+        st.header("How the Algorithm Learns: Training Deconstruction")
+        st.markdown("""
+        Before the Eigenfaces algorithm can recognize faces, it must **learn** from a set of training images.
+        This tab shows the exact mathematical steps used to build the 'Face Space'.
+        """)
         
-        col1, col2 = st.columns(2)
+        # --- STEP 1: Average Face ---
+        st.markdown("---")
+        st.subheader("Step 1: Calculate the Average Face (Psi)")
+        st.markdown(r"""
+        We calculate the arithmetic mean of all $M$ images in the training set.
+        """)
+        st.latex(r"\Psi = \frac{1}{M} \sum_{n=1}^{M} \Gamma_n")
         
-        with col1:
-            fig_mean, ax_mean = plt.subplots(figsize=(3, 3))
-            plot_face(mean_face, "Average Face", ax_mean)
-            st.pyplot(fig_mean)
-            
-        with col2:
-            st.markdown(f"**Top {n_components} Eigenfaces:** The directions of maximum variance.")
-            st.info("These 'ghostly' faces capture features like lighting, nose length, and eye position.")
-            
-            # Plot top 5 eigenfaces (or fewer if n_components < 5)
-            num_to_plot = min(5, n_components)
-            fig_eigen, axes_eigen = plt.subplots(1, num_to_plot, figsize=(10, 3))
-            if num_to_plot == 1:
-                axes_eigen = [axes_eigen] # Make iterable
-                
-            for i in range(num_to_plot):
-                plot_face(eigenfaces[i], f"Eigenface {i+1}", axes_eigen[i])
-            
-            st.pyplot(fig_eigen)
+        col_s1_1, col_s1_2 = st.columns([2, 1])
+        with col_s1_1:
+            st.markdown(r"""
+            - $\Gamma_n$: The $n$-th training image vector (flattened to 4096 pixels).
+            - $M$: The total number of training images (300 in our case).
+            - $\Psi$: The resulting **Average Face**.
+            """)
+        with col_s1_2:
+            fig_s1, ax_s1 = plt.subplots(figsize=(2.5, 2.5))
+            plot_face(mean_face, "Average Face (Psi)", ax_s1)
+            st.pyplot(fig_s1)
+        
+        st.info("The Average Face represents what an 'average' person looks like in our dataset. It becomes the **origin** of our Face Space.")
+        
+        # --- STEP 2: Difference Faces ---
+        st.markdown("---")
+        st.subheader("Step 2: Calculate the Difference Faces (Phi)")
+        st.markdown(r"""
+        We subtract the average face from each training image to isolate the **unique deviations**.
+        """)
+        st.latex(r"\Phi_i = \Gamma_i - \Psi")
+        
+        st.markdown(r"""
+        - $\Phi_i$: The mean-centered face vector (the 'difference' face).
+        - This removes common features and highlights what makes each face **unique**.
+        """)
+        
+        # Show example difference faces
+        st.write("**Example: First 5 training faces and their difference faces:**")
+        fig_s2, axes_s2 = plt.subplots(3, 5, figsize=(12, 7))
+        for i in range(5):
+            # Original face
+            plot_face(X_train[i], f"Original {i+1}", axes_s2[0, i])
+            # Mean face (same for all)
+            if i == 2:
+                axes_s2[1, i].set_title("- Average =", fontsize=10)
+            plot_face(mean_face, "", axes_s2[1, i])
+            # Difference face
+            diff_face = X_train[i] - mean_face
+            vmax = np.max(np.abs(diff_face))
+            axes_s2[2, i].imshow(diff_face.reshape(64, 64), cmap='seismic', vmin=-vmax, vmax=vmax)
+            axes_s2[2, i].axis('off')
+            axes_s2[2, i].set_title(f"Phi_{i+1}", fontsize=10)
+        
+        axes_s2[0, 0].set_ylabel("Original", fontsize=10)
+        axes_s2[1, 0].set_ylabel("Mean", fontsize=10)
+        axes_s2[2, 0].set_ylabel("Difference", fontsize=10)
+        plt.tight_layout()
+        st.pyplot(fig_s2)
+        
+        st.info("The difference faces look 'ghostly' because they only contain the deviations from average. Red = above average, Blue = below average.")
+        
+        # --- STEP 3: Covariance Surrogate Matrix ---
+        st.markdown("---")
+        st.subheader("Step 3: Calculate the Covariance Surrogate Matrix (L)")
+        st.markdown(r"""
+        The **Covariance Matrix** $C = A A^T$ would be huge ($4096 \times 4096$). 
+        Instead, we use a clever trick and calculate the smaller **Surrogate Matrix** $L = A^T A$.
+        """)
+        st.latex(r"L_{mn} = \Phi_m^T \Phi_n")
+        
+        st.markdown(r"""
+        - $L$: An $M \times M$ matrix (e.g., $300 \times 300$).
+        - $\Phi_m^T \Phi_n$: The **dot product** of difference image $m$ and difference image $n$.
+        - This captures how similar any two faces are to each other.
+        """)
+        
+        st.warning("**Why this trick?** The eigenvectors of the small matrix $L$ can be mathematically transformed into the eigenvectors of the large matrix $C$. This saves enormous computation!")
+        
+        # --- STEP 4: Eigenvectors of L ---
+        st.markdown("---")
+        st.subheader("Step 4: Find the Eigenvectors of L (v)")
+        st.markdown(r"""
+        We solve the standard eigenvalue problem for the small matrix $L$.
+        """)
+        st.latex(r"L v_k = \lambda_k v_k")
+        
+        st.markdown(r"""
+        - $v_k$: The $k$-th eigenvector of the small matrix $L$.
+        - $\lambda_k$: The associated **eigenvalue** (a scalar indicating importance).
+        - Larger eigenvalues = more important directions of variation.
+        """)
+        
+        # Show eigenvalue spectrum
+        eigenvalues = full_pca.explained_variance_
+        fig_s4, ax_s4 = plt.subplots(figsize=(10, 4))
+        ax_s4.bar(range(1, min(51, len(eigenvalues)+1)), eigenvalues[:50], color='steelblue')
+        ax_s4.set_xlabel("Eigenvalue Index (k)")
+        ax_s4.set_ylabel("Eigenvalue (lambda_k)")
+        ax_s4.set_title("Eigenvalue Spectrum (First 50)")
+        ax_s4.set_yscale('log')
+        st.pyplot(fig_s4)
+        
+        st.info("Notice how eigenvalues drop rapidly. The first few eigenfaces capture most of the variation; later ones capture noise.")
+        
+        # --- STEP 5: Calculate Eigenfaces ---
+        st.markdown("---")
+        st.subheader("Step 5: Calculate the Eigenfaces (u)")
+        st.markdown(r"""
+        We define the **Eigenfaces** by mapping the small eigenvectors $v$ back into the original image space using the difference faces.
+        """)
+        st.latex(r"u_k = \sum_{n=1}^{M} v_{kn} \Phi_n")
+        
+        st.markdown(r"""
+        - $u_k$: The final $k$-th **Eigenface**.
+        - $v_{kn}$: The $n$-th component of the eigenvector $v_k$.
+        - $\Phi_n$: The $n$-th difference face.
+        
+        Each Eigenface is a weighted combination of all the difference faces!
+        """)
+        
+        # Show first 10 eigenfaces
+        st.write("**The First 10 Eigenfaces:**")
+        fig_s5, axes_s5 = plt.subplots(2, 5, figsize=(12, 5))
+        for i in range(10):
+            row, col = i // 5, i % 5
+            plot_face(full_pca.components_[i], f"u_{i+1}", axes_s5[row, col])
+        plt.tight_layout()
+        st.pyplot(fig_s5)
+        
+        st.success("""
+        **Training Complete!** 
+        
+        These Eigenfaces form the basis of our 'Face Space'. Any new face can now be:
+        1. Centered (subtract the mean)
+        2. Projected onto these Eigenfaces to get a compact 'weight vector'
+        3. Reconstructed or compared to other faces
+        """)
 
     # =======================
     # TAB 2: RECONSTRUCTION
@@ -267,8 +385,11 @@ def main():
     # TAB 3: LIVE RECOGNITION
     # =======================
     with tab3:
-        st.header("Live Face Recognition")
-        st.write("We use the current Face Space (defined by the slider) to identify a new face from the Test Set.")
+        st.header("Live Face Recognition: The Two-Path Algorithm")
+        st.markdown("""
+        The Eigenfaces recognition system uses **two sequential checks** to classify an input image.
+        This demonstrates the full algorithm as described by Turk & Pentland.
+        """)
         
         col_btn, col_info = st.columns([1, 4])
         
@@ -284,142 +405,342 @@ def main():
             
         test_idx = st.session_state.random_test_idx
         
-        # --- Recognition Algorithm (Nearest Neighbor in Face Space) ---
-        
-        # 1. Get input test face
+        # --- Get input test face ---
         input_face = X_test[test_idx]
+        actual_person = y_test[test_idx]
         
-        # 2. Project Input Face into Face Space
-        # Calculate weights Omega_input
+        # --- Step 1: Project into Face Space ---
         input_phi = input_face - mean_face
         omega_input = np.dot(input_phi, eigenfaces.T)
         
-        # 3. Find Nearest Neighbor in Training Set
-        # Calculate Euclidean distance between Omega_input and all Omega_train
-        # dists = sqrt(sum((Omega_input - Omega_train)^2))
-        dists = np.linalg.norm(weights_train - omega_input, axis=1)
+        # --- Step 2: Reconstruct the face ---
+        phi_rec = np.dot(omega_input, eigenfaces)
+        input_reconstructed = phi_rec + mean_face
         
+        # Show the input face
+        st.markdown("---")
+        st.subheader("Input Image")
+        col_in1, col_in2, col_in3 = st.columns([1, 1, 1])
+        with col_in2:
+            fig_input, ax_input = plt.subplots(figsize=(3, 3))
+            plot_face(input_face, f"Test Image (Person {actual_person})", ax_input)
+            st.pyplot(fig_input)
+        
+        # ========================================
+        # PATH 1: SANITY CHECK (Face Detection)
+        # ========================================
+        st.markdown("---")
+        st.subheader("Path 1: The 'Sanity Check' (Face Detection)")
+        
+        st.markdown(r"""
+        **Goal:** Determine if the input image is a valid face.
+        
+        **The Logic:** Eigenfaces are trained *only* on faces. They cannot accurately reconstruct 
+        a shoe, a wall, or a hand. If you feed them a non-face, the reconstruction will look like 
+        a weird, blurry face-hybrid.
+        """)
+        
+        st.latex(r"\epsilon = ||\Phi - \Phi_{rec}||")
+        
+        st.markdown(r"""
+        - $\Phi$: The centered input image
+        - $\Phi_{rec}$: The reconstructed centered image
+        - $\epsilon$: The **reconstruction error** (how different they are)
+        """)
+        
+        # Calculate reconstruction error
+        reconstruction_error = np.linalg.norm(input_phi - phi_rec)
+        
+        # Threshold for face detection (tuned for Olivetti)
+        face_threshold = 5.0
+        is_face = reconstruction_error < face_threshold
+        
+        # Display Path 1 results
+        col_p1_1, col_p1_2, col_p1_3 = st.columns(3)
+        
+        with col_p1_1:
+            st.caption("Original (Centered)")
+            fig_p1a, ax_p1a = plt.subplots(figsize=(2.5, 2.5))
+            vmax = np.max(np.abs(input_phi))
+            ax_p1a.imshow(input_phi.reshape(64, 64), cmap='seismic', vmin=-vmax, vmax=vmax)
+            ax_p1a.axis('off')
+            ax_p1a.set_title("Phi", fontsize=10)
+            st.pyplot(fig_p1a)
+            
+        with col_p1_2:
+            st.caption("Reconstructed (Centered)")
+            fig_p1b, ax_p1b = plt.subplots(figsize=(2.5, 2.5))
+            ax_p1b.imshow(phi_rec.reshape(64, 64), cmap='seismic', vmin=-vmax, vmax=vmax)
+            ax_p1b.axis('off')
+            ax_p1b.set_title("Phi_rec", fontsize=10)
+            st.pyplot(fig_p1b)
+            
+        with col_p1_3:
+            st.caption("Difference (Error)")
+            fig_p1c, ax_p1c = plt.subplots(figsize=(2.5, 2.5))
+            error_map = input_phi - phi_rec
+            vmax_err = np.max(np.abs(error_map))
+            ax_p1c.imshow(error_map.reshape(64, 64), cmap='seismic', vmin=-vmax_err, vmax=vmax_err)
+            ax_p1c.axis('off')
+            ax_p1c.set_title("Phi - Phi_rec", fontsize=10)
+            st.pyplot(fig_p1c)
+        
+        # Decision
+        col_metric1, col_decision1 = st.columns([1, 2])
+        with col_metric1:
+            st.metric("Reconstruction Error (epsilon)", f"{reconstruction_error:.3f}")
+            st.caption(f"Threshold: {face_threshold}")
+        with col_decision1:
+            if is_face:
+                st.success("**PASS:** This IS a face. Proceed to Path 2.")
+            else:
+                st.error("**FAIL:** This is NOT a valid face. Recognition aborted.")
+        
+        # ========================================
+        # PATH 2: IDENTITY CHECK (Classification)
+        # ========================================
+        st.markdown("---")
+        st.subheader("Path 2: The 'Identity Check' (Classification)")
+        
+        st.markdown(r"""
+        **Goal:** Determine *who* the person is.
+        
+        **Data Used:** The input weights ($\Omega_{new}$) vs. the database weights ($\Omega_{known}$).
+        
+        **The Logic:** Every person in the database has a stored list of weights (their "Face Print"). 
+        We find which stored weights are closest to the new input.
+        """)
+        
+        st.latex(r"\epsilon_k = ||\Omega_{new} - \Omega_k||")
+        
+        st.markdown(r"""
+        - $\Omega_{new}$: The weight vector of the input face
+        - $\Omega_k$: The weight vector of person $k$ in the database
+        - We find the person with the **smallest** $\epsilon_k$
+        """)
+        
+        # Calculate distances to all training faces
+        dists = np.linalg.norm(weights_train - omega_input, axis=1)
         best_match_idx = np.argmin(dists)
         min_distance = dists[best_match_idx]
         
-        # 4. Thresholding (Unknown vs Known)
-        # Heuristic: Threshold is dynamic based on the max distance seen in training
-        # Or a fixed value suitable for Olivetti (approx 20-30 for whitened, higher for raw)
-        # We'll use a relative threshold: 1.5 * average training distance
-        threshold = 25.0 # Tuned for whitened PCA on Olivetti
-        
-        is_known = min_distance < threshold
+        # Threshold for known vs unknown
+        identity_threshold = 25.0
+        is_known = min_distance < identity_threshold
         
         predicted_person = y_train[best_match_idx]
-        actual_person = y_test[test_idx]
         
-        # --- Display Results ---
-        match_color = "green" if (predicted_person == actual_person) else "red"
+        # Display Path 2 results
+        col_p2_1, col_p2_2 = st.columns(2)
         
-        col_input, col_match = st.columns(2)
+        with col_p2_1:
+            st.markdown("**Input Face**")
+            fig_p2a, ax_p2a = plt.subplots(figsize=(3, 3))
+            plot_face(input_face, f"Actual: Person {actual_person}", ax_p2a)
+            st.pyplot(fig_p2a)
+            
+        with col_p2_2:
+            st.markdown("**Closest Match in Database**")
+            fig_p2b, ax_p2b = plt.subplots(figsize=(3, 3))
+            plot_face(X_train[best_match_idx], f"Predicted: Person {predicted_person}", ax_p2b)
+            st.pyplot(fig_p2b)
         
-        with col_input:
-            st.subheader("Input Face (Unknown)")
-            fig_in, ax_in = plt.subplots()
-            plot_face(input_face, f"Person ID: {actual_person}", ax_in)
-            st.pyplot(fig_in)
-            
-        with col_match:
-            st.subheader("Best Match")
-            match_status = "KNOWN" if is_known else "UNKNOWN (Too far)"
-            
-            fig_out, ax_out = plt.subplots()
-            plot_face(X_train[best_match_idx], f"Predicted: {predicted_person}", ax_out)
-            st.pyplot(fig_out)
-            
-            st.metric("Euclidean Distance", f"{min_distance:.2f}")
-            
+        # Decision
+        col_metric2, col_decision2 = st.columns([1, 2])
+        with col_metric2:
+            st.metric("Identity Distance (epsilon_k)", f"{min_distance:.2f}")
+            st.caption(f"Threshold: {identity_threshold}")
+        with col_decision2:
             if is_known:
-                st.success(f"Status: {match_status}")
                 if predicted_person == actual_person:
-                    st.markdown(f"<span style='color:green'>Correctly Identified!</span>", unsafe_allow_html=True)
+                    st.success(f"**IDENTIFIED:** Person {predicted_person} (Correct!)")
                 else:
-                    st.markdown(f"<span style='color:red'>Incorrect Match.</span>", unsafe_allow_html=True)
+                    st.warning(f"**IDENTIFIED:** Person {predicted_person} (Wrong - actually Person {actual_person})")
             else:
-                st.error(f"Status: {match_status}")
-                st.caption("The distance is too high. The face is considered 'Unknown'.")
-
-        st.info(f"""
-        **Algorithm Details:**
-        1. Projected Test Face onto {n_components} Eigenfaces.
-        2. Compared against {len(X_train)} training faces using Euclidean distance.
-        3. Threshold for 'Unknown': {threshold}.
+                st.error("**UNKNOWN PERSON (Intruder):** Face detected, but no match in database.")
         
-        *Tip: Lower the slider to reduce components. Recognition accuracy drops as distinct features are lost.*
-        """)
+        # ========================================
+        # SUMMARY
+        # ========================================
+        st.markdown("---")
+        st.subheader("Algorithm Summary")
         
-        # --- Educational: Euclidean Distance ---
-        st.markdown("---") 
-        st.subheader("How the Match was Found (The Distance Metric)")
-        st.markdown(r"""
-        We found the match by calculating the **Euclidean Distance** between the weights of the input face and the training faces.
+        # Create summary table
+        summary_data = {
+            "Path": ["Path 1: Face Detection", "Path 2: Identity Check"],
+            "What it Checks": ["Is this a face?", "Who is it?"],
+            "Data Compared": ["Phi vs Phi_rec (pixels)", "Omega_new vs Omega_k (weights)"],
+            "Metric": [f"epsilon = {reconstruction_error:.3f}", f"epsilon_k = {min_distance:.2f}"],
+            "Result": ["PASS (Face)" if is_face else "FAIL (Not a face)", 
+                      f"Person {predicted_person}" if is_known else "Unknown (Intruder)"]
+        }
+        st.table(summary_data)
         
-        $$ d(\mathbf{p}, \mathbf{q}) = \sqrt{\sum_{i=1}^n (q_i - p_i)^2} $$
-        
-        Where $\mathbf{p}$ is the weight vector of the Input Face and $\mathbf{q}$ is the weight vector of a Training Face.
-        """)
-        
-        with st.expander("See the actual numbers (Vectors)"):
-            st.write(f"**Input Face Weights (Top 5):** {omega_input[:5].round(2)}")
-            st.write(f"**Best Match Weights (Top 5):** {weights_train[best_match_idx][:5].round(2)}")
-            st.caption("The computer compares these lists of numbers. A smaller total difference means the faces are more similar.")
+        # Weight vector comparison
+        with st.expander("See the Weight Vectors (Face Prints)"):
+            st.write(f"**Input Face Weights (first 10):** {omega_input[:10].round(2)}")
+            st.write(f"**Best Match Weights (first 10):** {weights_train[best_match_idx][:10].round(2)}")
             
-            # Simple vector plot
-            st.write("**Visualizing the Distance:**")
-            chart_data = {"Index": range(len(omega_input)), "Input": omega_input, "Match": weights_train[best_match_idx]}
-            st.line_chart(chart_data, x="Index", y=["Input", "Match"])
-            st.caption("If the two lines overlap closely, the distance is small (Good Match).")
+            st.write("**Visual Comparison:**")
+            chart_data = {"Index": range(len(omega_input)), "Input (Omega_new)": omega_input, "Match (Omega_k)": weights_train[best_match_idx]}
+            st.line_chart(chart_data, x="Index", y=["Input (Omega_new)", "Match (Omega_k)"])
+            st.caption("If the two lines overlap closely, the faces are similar.")
+        
+        # ========================================
+        # THRESHOLD CALCULATION
+        # ========================================
+        with st.expander("How are the Thresholds Calculated?"):
+            st.markdown(r"""
+            ### Threshold Calculation
+            
+            The thresholds are **critical** parameters that determine how strict the system is. 
+            They are typically learned from the training data.
+            
+            ---
+            
+            #### Path 1 Threshold (Face Detection): $\theta_{face}$
+            
+            **Method:** Calculate the reconstruction error for all *known faces* in the training set, 
+            then set the threshold to be slightly above the maximum observed error.
+            """)
+            
+            # Calculate reconstruction errors for all training faces
+            train_phi = X_train - mean_face
+            train_reconstructed = np.dot(np.dot(train_phi, eigenfaces.T), eigenfaces)
+            train_errors = np.linalg.norm(train_phi - train_reconstructed, axis=1)
+            
+            st.latex(r"\theta_{face} = \max(\epsilon_{train}) + \text{margin}")
+            
+            st.markdown(f"""
+            **From our training data:**
+            - Mean reconstruction error: **{np.mean(train_errors):.3f}**
+            - Max reconstruction error: **{np.max(train_errors):.3f}**
+            - Standard deviation: **{np.std(train_errors):.3f}**
+            - **Threshold used:** {face_threshold} (set conservatively for this demo)
+            """)
+            
+            # Show histogram
+            fig_hist1, ax_hist1 = plt.subplots(figsize=(8, 3))
+            ax_hist1.hist(train_errors, bins=30, color='steelblue', edgecolor='white', alpha=0.7)
+            ax_hist1.axvline(x=face_threshold, color='red', linestyle='--', linewidth=2, label=f'Threshold = {face_threshold}')
+            ax_hist1.axvline(x=reconstruction_error, color='green', linestyle='-', linewidth=2, label=f'Current Input = {reconstruction_error:.3f}')
+            ax_hist1.set_xlabel('Reconstruction Error')
+            ax_hist1.set_ylabel('Count')
+            ax_hist1.set_title('Distribution of Reconstruction Errors (Training Faces)')
+            ax_hist1.legend()
+            st.pyplot(fig_hist1)
+            
+            st.markdown("---")
+            
+            st.markdown(r"""
+            #### Path 2 Threshold (Identity): $\theta_{id}$
+            
+            **Method:** For each person, calculate the average distance between their own images. 
+            The threshold should be larger than within-class distances but smaller than between-class distances.
+            """)
+            
+            st.latex(r"\theta_{id} = \alpha \cdot \text{mean}(\text{within-class distances})")
+            
+            # Calculate within-class distances (simplified: mean distance per person)
+            within_class_dists = []
+            for person_id in np.unique(y_train):
+                person_indices = np.where(y_train == person_id)[0]
+                if len(person_indices) > 1:
+                    person_weights = weights_train[person_indices]
+                    for i in range(len(person_weights)):
+                        for j in range(i+1, len(person_weights)):
+                            within_class_dists.append(np.linalg.norm(person_weights[i] - person_weights[j]))
+            
+            within_class_dists = np.array(within_class_dists)
+            
+            st.markdown(f"""
+            **From our training data:**
+            - Mean within-class distance: **{np.mean(within_class_dists):.2f}**
+            - Max within-class distance: **{np.max(within_class_dists):.2f}**
+            - **Threshold used:** {identity_threshold} (approx 2x the mean within-class distance)
+            """)
+            
+            # Show histogram of all pairwise distances
+            fig_hist2, ax_hist2 = plt.subplots(figsize=(8, 3))
+            ax_hist2.hist(within_class_dists, bins=30, color='steelblue', edgecolor='white', alpha=0.7)
+            ax_hist2.axvline(x=identity_threshold, color='red', linestyle='--', linewidth=2, label=f'Threshold = {identity_threshold}')
+            ax_hist2.axvline(x=min_distance, color='green', linestyle='-', linewidth=2, label=f'Current Match = {min_distance:.2f}')
+            ax_hist2.set_xlabel('Distance Between Face Weights')
+            ax_hist2.set_ylabel('Count')
+            ax_hist2.set_title('Distribution of Within-Class Distances (Same Person)')
+            ax_hist2.legend()
+            st.pyplot(fig_hist2)
+            
+            st.info("""
+            **Key Insight:** If the threshold is too low, the system rejects everyone as 'Unknown'. 
+            If too high, it misidentifies people. Finding the right balance requires experimentation 
+            or techniques like ROC curve analysis.
+            """)
 
     # =======================
     # TAB 4: WEBCAM RECOGNITION
     # =======================
     with tab4:
-        st.header(" Webcam Face Recognition")
+        st.header("Webcam Face Recognition")
         st.markdown("""
-        **Try it yourself!** Take a photo with your webcam and see how the Eigenfaces algorithm 
-        attempts to match your face against the Olivetti training set.
+        **Try it yourself!** Take a photo with your webcam and see the Eigenfaces two-path algorithm in action.
         
-        > **Note:** Since the training set contains only 40 specific people, your face will likely 
-        > be matched to the "closest" person in that dataset. The distance metric will tell you 
-        > how similar the match is.
+        The system will:
+        1. **Detect** if the image contains a valid face (Path 1: Sanity Check)
+        2. **Identify** who it is or flag as "New Face" (Path 2: Identity Check)
         """)
         
-        st.warning("**For best results:** Center your face, use good lighting, and look directly at the camera.")
+        # Threshold controls in sidebar or main area
+        st.markdown("### Threshold Settings")
+        col_t1, col_t2 = st.columns(2)
+        
+        with col_t1:
+            face_threshold_webcam = st.slider(
+                "Face Detection Threshold (epsilon)",
+                min_value=1.0,
+                max_value=20.0,
+                value=8.0,  # Recommended for webcam
+                step=0.5,
+                help="Lower = stricter face detection. Webcam images typically have error 4-10."
+            )
+            st.caption("Recommended: 8.0 | Webcam typical: 4-10")
+            
+        with col_t2:
+            identity_threshold_webcam = st.slider(
+                "Identity Threshold (epsilon_k)",
+                min_value=5.0,
+                max_value=50.0,
+                value=25.0,  # Recommended
+                step=1.0,
+                help="Lower = stricter identity matching. Recommended: 25.0"
+            )
+            st.caption("Recommended: 25.0 | Range: [5, 50]")
+        
+        st.markdown("---")
         
         # Camera input
         camera_photo = st.camera_input("Take a photo of your face")
         
         if camera_photo is not None:
             # Process the captured image
-            st.subheader("Processing Your Image")
+            st.subheader("Processing Pipeline")
             
             # Load image from camera
             pil_image = Image.open(camera_photo)
             img_array = np.array(pil_image)
             
-            col_orig, col_processed = st.columns(2)
+            # === PREPROCESSING PIPELINE ===
+            # Matching Olivetti: detect -> crop -> resize -> grayscale -> histogram equalization -> normalize
             
-            with col_orig:
-                st.caption("Original Capture")
-                st.image(pil_image, use_container_width=True)
-            
-            # Preprocess for eigenfaces
-            # 1. Convert to grayscale
+            # Step 1: Convert to grayscale
             if len(img_array.shape) == 3:
                 gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
             else:
                 gray = img_array
             
-            # 2. Detect face using Haar Cascade
-            # Load the pre-trained face detector
+            # Step 2: Detect face using Haar Cascade
             face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
             
-            # Detect faces in the image
             faces = face_cascade.detectMultiScale(
                 gray,
                 scaleFactor=1.1,
@@ -427,15 +748,14 @@ def main():
                 minSize=(30, 30)
             )
             
-            face_detected = len(faces) > 0
+            haar_face_detected = len(faces) > 0
             
-            if face_detected:
-                # Use the first (largest) detected face
-                # Sort by area (w*h) and take the largest
+            if haar_face_detected:
+                # Use the largest detected face
                 faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
                 x, y, w, h = faces[0]
                 
-                # Add some padding around the face (20%)
+                # Add padding (20%)
                 padding = int(0.2 * max(w, h))
                 x_start = max(0, x - padding)
                 y_start = max(0, y - padding)
@@ -445,7 +765,7 @@ def main():
                 # Crop the face region
                 face_crop = gray[y_start:y_end, x_start:x_end]
                 
-                # Make it square (take the center)
+                # Make it square
                 fh, fw = face_crop.shape
                 if fh > fw:
                     diff = (fh - fw) // 2
@@ -455,108 +775,201 @@ def main():
                     face_crop = face_crop[:, diff:diff+fh]
                 
                 cropped = face_crop
-                st.success(f"Face detected! Region: {w}x{h} pixels")
             else:
-                # Fallback: center crop if no face detected
-                st.warning("No face detected. Using center crop as fallback. Try better lighting or face the camera directly.")
+                # Fallback: center crop
                 h_img, w_img = gray.shape
                 min_dim = min(h_img, w_img)
                 start_h = (h_img - min_dim) // 2
                 start_w = (w_img - min_dim) // 2
                 cropped = gray[start_h:start_h+min_dim, start_w:start_w+min_dim]
             
-            # 3. Resize to 64x64 (Olivetti face size)
+            # Step 3: Resize to 64x64 (Olivetti face size)
             resized = cv2.resize(cropped, (64, 64), interpolation=cv2.INTER_AREA)
             
-            # 4. Normalize to [0, 1] range (like Olivetti)
-            normalized = resized.astype(np.float64) / 255.0
+            # Step 4: CLAHE (Contrast Limited Adaptive Histogram Equalization)
+            # Better than regular histogram equalization for matching Olivetti
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            clahe_applied = clahe.apply(resized)
             
-            with col_processed:
-                st.caption("Preprocessed (64x64 grayscale)")
-                fig_proc, ax_proc = plt.subplots(figsize=(3, 3))
-                ax_proc.imshow(normalized, cmap='gray')
-                ax_proc.axis('off')
-                st.pyplot(fig_proc)
-                if face_detected:
-                    st.caption("Face auto-detected and cropped")
+            # Step 5: Normalize to [0, 1] range
+            normalized_raw = clahe_applied.astype(np.float64) / 255.0
             
-            # 5. Flatten to vector
+            # Step 6: Match Olivetti statistics
+            # Olivetti faces have specific mean/std characteristics
+            olivetti_mean = np.mean(X_train)  # ~0.55 typically
+            olivetti_std = np.std(X_train)    # ~0.23 typically
+            
+            webcam_mean = np.mean(normalized_raw)
+            webcam_std = np.std(normalized_raw)
+            
+            # Standardize to match Olivetti distribution
+            if webcam_std > 0:
+                normalized = (normalized_raw - webcam_mean) / webcam_std * olivetti_std + olivetti_mean
+            else:
+                normalized = normalized_raw
+            
+            # Clip to valid range [0, 1]
+            normalized = np.clip(normalized, 0, 1)
+            
+            # Flatten to vector
             webcam_face = normalized.flatten()
             
-            st.markdown("---")
-            st.subheader("Recognition Results")
+            # Show preprocessing pipeline
+            with st.expander("View Preprocessing Pipeline", expanded=False):
+                cols_pipe = st.columns(6)
+                
+                with cols_pipe[0]:
+                    st.caption("1. Original")
+                    st.image(pil_image, use_container_width=True)
+                    
+                with cols_pipe[1]:
+                    st.caption("2. Grayscale")
+                    st.image(gray, use_container_width=True)
+                    
+                with cols_pipe[2]:
+                    st.caption("3. Face Crop")
+                    st.image(cropped, use_container_width=True)
+                    
+                with cols_pipe[3]:
+                    st.caption("4. Resize 64x64")
+                    st.image(resized, use_container_width=True)
+                    
+                with cols_pipe[4]:
+                    st.caption("5. CLAHE")
+                    st.image(clahe_applied, use_container_width=True)
+                    
+                with cols_pipe[5]:
+                    st.caption("6. Normalized")
+                    # Show as grayscale image
+                    fig_norm, ax_norm = plt.subplots(figsize=(2, 2))
+                    ax_norm.imshow(normalized.reshape(64, 64), cmap='gray', vmin=0, vmax=1)
+                    ax_norm.axis('off')
+                    st.pyplot(fig_norm)
+                
+                if haar_face_detected:
+                    st.success(f"Haar Cascade detected a face: {w}x{h} pixels")
+                else:
+                    st.warning("No face detected by Haar Cascade. Using center crop.")
+                
+                st.info(f"**Stats:** Olivetti mean={olivetti_mean:.3f}, std={olivetti_std:.3f} | Your image after matching: mean={np.mean(normalized):.3f}, std={np.std(normalized):.3f}")
             
-            # --- Recognition Algorithm ---
-            # Project webcam face into Face Space
+            # ========================================
+            # PATH 1: FACE DETECTION (Reconstruction Error)
+            # ========================================
+            st.markdown("---")
+            st.subheader("Path 1: Face Detection (Sanity Check)")
+            
+            # Project and reconstruct
             webcam_phi = webcam_face - mean_face
             omega_webcam = np.dot(webcam_phi, eigenfaces.T)
+            phi_rec_webcam = np.dot(omega_webcam, eigenfaces)
+            reconstructed_webcam = phi_rec_webcam + mean_face
             
-            # Find Nearest Neighbor
-            dists_webcam = np.linalg.norm(weights_train - omega_webcam, axis=1)
-            best_match_idx_webcam = np.argmin(dists_webcam)
-            min_distance_webcam = dists_webcam[best_match_idx_webcam]
+            # Calculate reconstruction error
+            reconstruction_error_webcam = np.linalg.norm(webcam_phi - phi_rec_webcam)
             
-            # Threshold for unknown
-            threshold_webcam = 25.0
-            is_known_webcam = min_distance_webcam < threshold_webcam
+            is_valid_face = reconstruction_error_webcam < face_threshold_webcam
             
-            predicted_person_webcam = y_train[best_match_idx_webcam]
+            col_face1, col_face2, col_face3 = st.columns(3)
             
-            # Display results
-            col_you, col_match_webcam = st.columns(2)
-            
-            with col_you:
-                st.markdown("**Your Face (Preprocessed)**")
-                fig_you, ax_you = plt.subplots(figsize=(3, 3))
-                plot_face(webcam_face, "You", ax_you)
-                st.pyplot(fig_you)
+            with col_face1:
+                st.caption("Your Image (Phi)")
+                fig_f1, ax_f1 = plt.subplots(figsize=(2.5, 2.5))
+                plot_face(webcam_face, "", ax_f1)
+                st.pyplot(fig_f1)
                 
-            with col_match_webcam:
-                st.markdown("**Closest Match from Training Set**")
-                fig_match, ax_match = plt.subplots(figsize=(3, 3))
-                plot_face(X_train[best_match_idx_webcam], f"Person {predicted_person_webcam}", ax_match)
-                st.pyplot(fig_match)
+            with col_face2:
+                st.caption("Reconstructed (Phi_rec)")
+                fig_f2, ax_f2 = plt.subplots(figsize=(2.5, 2.5))
+                plot_face(reconstructed_webcam, "", ax_f2)
+                st.pyplot(fig_f2)
+                
+            with col_face3:
+                st.caption("Difference")
+                fig_f3, ax_f3 = plt.subplots(figsize=(2.5, 2.5))
+                diff_img = webcam_face - reconstructed_webcam
+                vmax = np.max(np.abs(diff_img))
+                ax_f3.imshow(diff_img.reshape(64, 64), cmap='seismic', vmin=-vmax, vmax=vmax)
+                ax_f3.axis('off')
+                st.pyplot(fig_f3)
             
-            # Metrics
-            col_m1, col_m2 = st.columns(2)
-            with col_m1:
-                st.metric("Euclidean Distance", f"{min_distance_webcam:.2f}")
-            with col_m2:
-                st.metric("Matched Person ID", f"{predicted_person_webcam}")
+            col_metric_face, col_decision_face = st.columns([1, 2])
+            with col_metric_face:
+                st.metric("Reconstruction Error (epsilon)", f"{reconstruction_error_webcam:.3f}")
+                st.caption(f"Threshold: {face_threshold_webcam}")
             
-            if is_known_webcam:
-                st.success(f"Match found! Distance ({min_distance_webcam:.2f}) is below threshold ({threshold_webcam}).")
+            with col_decision_face:
+                if is_valid_face:
+                    st.success("**PASS:** This IS a valid face. Proceeding to identification...")
+                else:
+                    st.error("**FAIL:** This does NOT appear to be a valid face.")
+                    st.markdown("""
+                    The reconstruction error is too high. This means:
+                    - The Eigenfaces cannot reconstruct your input well
+                    - Your input may not be a proper face image
+                    - Try: face the camera directly, improve lighting, or remove obstructions
+                    """)
+            
+            # Only proceed to Path 2 if it's a valid face
+            if is_valid_face:
+                # ========================================
+                # PATH 2: IDENTITY CHECK
+                # ========================================
+                st.markdown("---")
+                st.subheader("Path 2: Identity Check")
+                
+                # Find Nearest Neighbor
+                dists_webcam = np.linalg.norm(weights_train - omega_webcam, axis=1)
+                best_match_idx_webcam = np.argmin(dists_webcam)
+                min_distance_webcam = dists_webcam[best_match_idx_webcam]
+                
+                is_known_webcam = min_distance_webcam < identity_threshold_webcam
+                predicted_person_webcam = y_train[best_match_idx_webcam]
+                
+                # Always show the closest match
+                col_you, col_match_webcam = st.columns(2)
+                
+                with col_you:
+                    st.markdown("**Your Face**")
+                    fig_you, ax_you = plt.subplots(figsize=(3, 3))
+                    plot_face(webcam_face, "You", ax_you)
+                    st.pyplot(fig_you)
+                    
+                with col_match_webcam:
+                    st.markdown("**Closest Match in Database**")
+                    fig_match, ax_match = plt.subplots(figsize=(3, 3))
+                    plot_face(X_train[best_match_idx_webcam], f"Person {predicted_person_webcam}", ax_match)
+                    st.pyplot(fig_match)
+                
+                # Metrics and decision
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    st.metric("Identity Distance (epsilon_k)", f"{min_distance_webcam:.2f}")
+                with col_m2:
+                    st.metric("Closest Person ID", f"{predicted_person_webcam}")
+                
+                st.caption(f"Identity Threshold: {identity_threshold_webcam}")
+                
+                if is_known_webcam:
+                    st.success(f"**IDENTIFIED:** You look like Person {predicted_person_webcam} in the database!")
+                    st.markdown(f"Distance ({min_distance_webcam:.2f}) is below threshold ({identity_threshold_webcam}).")
+                else:
+                    st.warning("**NEW FACE DETECTED - Not in Database**")
+                    st.markdown(f"""
+                    Distance ({min_distance_webcam:.2f}) exceeds threshold ({identity_threshold_webcam}).
+                    
+                    This means your face is **not** one of the 40 people in the Olivetti dataset.
+                    The closest match (Person {predicted_person_webcam}) is shown above for reference.
+                    """)
             else:
-                st.info(f"No close match. Distance ({min_distance_webcam:.2f}) exceeds threshold ({threshold_webcam}). Your face is 'unknown' to this system.")
-            
-            # Reconstruction of webcam face
-            st.markdown("---")
-            st.subheader("How the Algorithm 'Sees' You")
-            st.markdown(f"Using **{n_components}** eigenfaces to reconstruct your image:")
-            
-            # Reconstruct
-            reconstructed_webcam = np.dot(omega_webcam, eigenfaces) + mean_face
-            
-            col_r1, col_r2 = st.columns(2)
-            with col_r1:
-                st.caption("Your Original (Preprocessed)")
-                fig_ro, ax_ro = plt.subplots(figsize=(3, 3))
-                plot_face(webcam_face, "", ax_ro)
-                st.pyplot(fig_ro)
-            with col_r2:
-                st.caption(f"Reconstructed (K={n_components})")
-                fig_rr, ax_rr = plt.subplots(figsize=(3, 3))
-                plot_face(reconstructed_webcam, "", ax_rr)
-                st.pyplot(fig_rr)
-            
-            st.info("The reconstruction shows what information the algorithm retains. Increase the number of eigenfaces (slider) for more detail!")
+                st.info("Identity check skipped because the input was not recognized as a valid face.")
         else:
             st.info("Click the camera button above to take a photo and test face recognition!")
 
     # =======================
-    # TAB 5: COMPONENT EXPLORER
+    # TAB 1: COMPONENT EXPLORER
     # =======================
-    with tab5:
+    with tab1:
         st.header("Component Explorer")
         st.write("Understand the 'building blocks' (Eigenfaces) and why we chose them.")
         
@@ -605,9 +1018,9 @@ def main():
                 st.pyplot(fig_g)
 
     # =======================
-    # TAB 6: HISTORY & CONTEXT
+    # TAB 5: HISTORY & CONTEXT
     # =======================
-    with tab6:
+    with tab5:
         st.header("History & Context")
         
         st.subheader("1. The Origin Story (1991)")
@@ -644,9 +1057,9 @@ def main():
             st.error("**Cons**\n\n- Fails with Lighting Changes\n- Fails with Rotations\n- Needs Centered Faces")
 
     # =======================
-    # TAB 7: FUTURE & MODERN
+    # TAB 6: FUTURE & MODERN
     # =======================
-    with tab7:
+    with tab6:
         st.header("Modern AI & The Future")
         
         st.subheader("What do we use now? (Deep Learning)")
