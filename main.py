@@ -213,7 +213,7 @@ def main():
         - **High Covariance:** Yes, they change together. (This implies **redundancy/structure**.)
         - **Zero Covariance:** No, they are random relative to each other. (This implies **noise**.)
         
-        The Covariance Matrix captures the Shape of the data cloud.
+        The Covariance Matrix captures the Shape of the data clogud.
         """)
         
         # --- STEP 4: Eigenvectors of L ---
