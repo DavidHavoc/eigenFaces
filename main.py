@@ -203,6 +203,19 @@ def main():
         
         st.warning("**Why this trick?** The eigenvectors of the small matrix $L$ can be mathematically transformed into the eigenvectors of the large matrix $C$. This saves enormous computation!")
         
+        st.info(r"""
+        **What does the Covariance Matrix actually tell us?**
+        
+        The Covariance Matrix is a massive grid that answers one question for every possible pair of pixels: 
+        
+        *"When Pixel A gets brighter, does Pixel B get brighter too?"*
+        
+        - **High Covariance:** Yes, they change together. (This implies **redundancy/structure**.)
+        - **Zero Covariance:** No, they are random relative to each other. (This implies **noise**.)
+        
+        The Covariance Matrix captures the Shape of the data cloud.
+        """)
+        
         # --- STEP 4: Eigenvectors of L ---
         st.markdown("---")
         st.subheader("Step 4: Find the Eigenvectors of L (v)")
