@@ -90,6 +90,15 @@ pip install -r requirements.txt
 *   Make sure no other application (like Zoom or Teams) is currently using the camera.
 *   If on macOS, check System Settings -> Privacy & Security -> Camera to ensure your terminal/browser has access.
 
+### 4. Port Already in Use
+**Issue:** Error "Port 8501 is already in use" or the app doesn't launch.
+**Fix:**
+*   **Option A:** Close the *other* terminal window where Streamlit is currently running (Press `Ctrl+C`).
+*   **Option B:** Run on a different port manually:
+    ```bash
+    streamlit run main.py --server.port 8502
+    ```
+
 ## License
 
 This project is open-source and available under the MIT License.
