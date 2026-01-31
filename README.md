@@ -68,6 +68,28 @@ This project helps answer:
 *   **Turk, M., & Pentland, A. (1991).** "Eigenfaces for Recognition." *Journal of Cognitive Neuroscience*, 3(1), 71-86.  
     [IEEE Xplore](https://ieeexplore.ieee.org/document/139758/authors#authors)
 
+## Common Issues & Troubleshooting
+
+### 1. Images Not Loading / Broken Images
+**Issue:** Sometimes the face images or plots appear as broken icons or do not render immediately.
+**Fix:** This is often a Streamlit caching or rendering hiccup.
+*   **Refresh the page** (Cmd+R or F5).
+*   If running locally, try clearing the Streamlit cache by clicking the "Hamburger menu" (top right) -> "Clear cache" and then rerun.
+
+### 2. "ModuleNotFoundError"
+**Issue:** Passages like `ModuleNotFoundError: No module named 'cv2'` or `sklearn`.
+**Fix:** Ensure you have installed the requirements in your active environment:
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Webcam Not Starting
+**Issue:** The webcam component stays blank or shows an error.
+**Fix:**
+*   Ensure your browser has **permission** to access the camera.
+*   Make sure no other application (like Zoom or Teams) is currently using the camera.
+*   If on macOS, check System Settings -> Privacy & Security -> Camera to ensure your terminal/browser has access.
+
 ## License
 
 This project is open-source and available under the MIT License.
